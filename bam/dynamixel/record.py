@@ -12,8 +12,20 @@ import os
 import numpy as np
 import argparse
 import time
-from .dynamixel import DynamixelActuatorV1, DynamixelXL320
+from .dynamixel import DynamixelActuatorV1, DynamixelXL320, DynamixelXH540
 from bam.trajectory import *
+
+# Motors driven through a hand-rolled dynamixel_sdk class (see dynamixel.py)
+# rather than the rustypot bindings below. Anything not listed here falls
+# back to DynamixelActuatorV1 (Protocol V1: MX / AX series).
+_LOCAL_CONTROLLER_CLASSES = {
+    "xl320": DynamixelXL320,
+    "xh540": DynamixelXH540,
+    # Protocol 2.0, control table identical to XH540 -- see MX106V2Actuator /
+    # MX64V2Actuator docstrings in bam/dynamixel/actuator.py.
+    "mx106v2": DynamixelXH540,
+    "mx64v2": DynamixelXH540,
+}
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("--mass", type=float, required=True)
@@ -29,6 +41,10 @@ args = arg_parser.parse_args()
 
 if args.trajectory not in trajectories:
     raise ValueError(f"Unknown trajectory: {args.trajectory}")
+
+# Fail fast (before spending time driving the motor) if logdir can't be
+# created, rather than only discovering it's missing at the final json.dump.
+os.makedirs(args.logdir, exist_ok=True)
 
 _XL330_MOTORS = {"xl330", "xl330i"}
 
@@ -64,7 +80,8 @@ if args.motor in _XL330_MOTORS:
         c.write_torque_enable(ID, torque_enable)
         c.write_position_p_gain(ID, args.kp)
 else:
-    dxl = DynamixelActuatorV1(args.port)
+    controller_cls = _LOCAL_CONTROLLER_CLASSES.get(args.motor, DynamixelActuatorV1)
+    dxl = controller_cls(args.port)
 
     start = time.time()
     while time.time() - start < 1.0:
@@ -78,7 +95,7 @@ else:
 start = time.time()
 data = {
     "mass": args.mass,
-    "arm-mass": args.arm_mass,
+    "arm_mass": args.arm_mass,
     "length": args.length,
     "kp": args.kp,
     "vin": args.vin,

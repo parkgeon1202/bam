@@ -8,15 +8,18 @@
 
 from .testbench import Pendulum
 from .erob.actuator import ErobActuator
-from .dynamixel.actuator import MXActuator, XL320Actuator, XL330Actuator, XL330CurrentActuator
+from .dynamixel.actuator import MXActuator, MX28Actuator, MX64V2Actuator, MX106V2Actuator, XHActuator, XL320Actuator, XL330Actuator, XL330CurrentActuator
 from .feetech.actuator import STS3215Actuator
 from .unitree.actuator import UnitreeGo1Actuator
 
 actuators = {
     # Dynamixel MX series
     "mx64": lambda: MXActuator(Pendulum),
+    "mx64v2": lambda: MX64V2Actuator(Pendulum),  # MX-64(2.0), Protocol 2.0 firmware
     "mx106": lambda: MXActuator(Pendulum),
-    
+    "mx106v2": lambda: MX106V2Actuator(Pendulum),  # MX-106(2.0), Protocol 2.0 firmware
+    "mx28": lambda: MX28Actuator(Pendulum),
+    "xh540": lambda: XHActuator(Pendulum),
     # Dynamixel XL series
     "xl320": lambda: XL320Actuator(Pendulum),
     "xl330": lambda: XL330Actuator(Pendulum),
