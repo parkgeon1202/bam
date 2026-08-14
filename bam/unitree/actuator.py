@@ -6,12 +6,16 @@
 
 #     http://www.apache.org/licenses/LICENSE-2.0
 
+from __future__ import annotations
+
 import numpy as np
-from typing import Union
-from bam.message import yellow, print_parameter, bright
+from typing import TYPE_CHECKING, Union
 from bam.actuator import Actuator
 from bam.parameter import Parameter
 from bam.testbench import Testbench, Pendulum
+
+if TYPE_CHECKING:
+    from bam.actuator import ArrayLike
 
 
 class UnitreeGo1Actuator(Actuator):
@@ -48,34 +52,28 @@ class UnitreeGo1Actuator(Actuator):
         return "N.m"
 
     def compute_control(
-        self, q_target: float, q: float, dq: float, dt: float
-    ) -> Union[float, None]:
+        self, q_target: ArrayLike, q: ArrayLike, dq: ArrayLike, dt: float
+    ) -> Union[ArrayLike, None]:
         # Target velocity is assumed to be 0
-        torque = (q_target - q) * self.kp * self.model.ratio.value + self.damping * (0.0 - dq)
-        torque = np.clip(
+        torque = (q_target - q) * self.kp * self.model.ratio.value + self.damping * (
+            0.0 - dq
+        )
+        torque = self.backend.clamp(
             torque, -self.model.max_torque.value, self.model.max_torque.value
         )
 
         return torque
 
     def compute_torque(
-        self, control: float | None, torque_enable: bool, q: float, dq: float
-    ) -> float:
+        self,
+        control: ArrayLike | None,
+        torque_enable: bool,
+        q: ArrayLike,
+        dq: ArrayLike,
+    ) -> ArrayLike:
         torques = control * torque_enable
 
         return torques
 
     def get_extra_inertia(self) -> float:
         return self.model.armature.value
-
-    def to_mujoco(self):
-        if self.kp == 0:
-            print(yellow(f"WARNING: kp is not set"))
-
-        print_parameter("armature", self.model.armature.value)
-        print_parameter("kp", self.kp * self.model.ratio.value)
-        print_parameter("damping", self.model.friction_viscous.value)
-        print_parameter("frictionloss", self.model.friction_base.value)
-        print_parameter("forcerange", self.model.max_torque.value)
-
-        print("")
