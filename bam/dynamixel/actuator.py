@@ -43,6 +43,204 @@ class MXActuator(VoltageControlledActuator):
         return self.model.armature.value
 
 
+MX28_ENCODER_COUNTS_PER_REV = 4096  # Resolution: 4096 pulse/rev (datasheet)
+MX28_KP_DIVISOR = 128  # Position P Gain: KPP = KPP(TBL) / 128 (datasheet, not empirically corrected)
+MX28_PWM_LIMIT = 885   # Default Present PWM limit for MX-28(2.0) (datasheet)
+
+
+class MX28Actuator(VoltageControlledActuator):
+    """
+    Represents a Dynamixel MX-28(2.0) actuator.
+
+    Protocol 2.0 control table -- identical layout to XH540 (Torque
+    Enable=64, Position P/I/D Gain=84/82/80 with the same KPP=register/128
+    conversion, Goal Position=116, Present PWM=124, PWM Limit=36, all 4096
+    counts/rev), unlike the original Protocol 1.0 MX-28/64/106. Not
+    inherited from MXActuator: every constructor argument differs (formula-
+    based error_gain instead of an oscilloscope constant), so there's
+    nothing to actually share.
+
+    See bam/dynamixel/configure_kp_divisor.py to (re-)measure
+    MX28_KP_DIVISOR directly from the servo -- the same script and
+    DynamixelXH540 class work unmodified for MX-28(2.0), just point
+    --port/--id at it.
+    """
+
+    def __init__(self, testbench_class: Testbench):
+        super().__init__(
+            testbench_class,
+            vin=16.5,
+            kp=32.0,
+            # This gain, if multiplied by a position error and firmware KP, gives duty cycle
+            error_gain=(MX28_ENCODER_COUNTS_PER_REV / (2 * np.pi))
+            / (MX28_KP_DIVISOR * MX28_PWM_LIMIT),
+            max_pwm=1.0,
+        )
+
+    def initialize(self):
+        # Torque constant [Nm/A] or [V/(rad/s)]
+        # Center from datasheet stall torque/current @12V (2.5/1.4 ~= 1.79 Nm/A),
+        # range widened to also cover the no-load-speed cross-check
+        # (12V / 55rpm ~= 2.08 Nm/A)
+        self.model.kt = Parameter(1.9, 1.2, 2.5)
+
+        # Motor resistance [Ohm]
+        # Stall condition U ~= I*R across 11.1/12.0/14.8V all agree on ~8.5-8.7 Ohm
+        self.model.R = Parameter(8.6, 6.0, 11.0)
+
+        # Motor armature / apparent inertia [kg m^2]
+        # No rotor inertia published, left for the optimizer to identify
+        self.model.armature = Parameter(0.003, 0.0005, 0.05)
+
+    def get_extra_inertia(self) -> float:
+        return self.model.armature.value
+
+
+MX106V2_ENCODER_COUNTS_PER_REV = 4096  # Resolution: 4096 pulse/rev (datasheet)
+MX106V2_KP_DIVISOR = 147  # Empirically measured with bam/dynamixel/configure_kp_divisor.py
+# (n-weighted mean across kp in [100, 200, 300, 400, 600, 800], individual
+# per-kp estimates in [144.7, 149.0]; datasheet/manual says 128 -- same kind
+# of mismatch previously found for XL330, see XL330_KP_DIVISOR below.
+# TODO: re-run and use the script's own pooled least-squares estimate
+# (printed at the end of a run) instead of this approximation.
+MX106V2_PWM_LIMIT = 885   # Present PWM limit, read back from the servo's own register (confirmed)
+
+
+class MX106V2Actuator(VoltageControlledActuator):
+    """
+    Represents a Dynamixel MX-106(2.0) actuator, i.e. the Protocol 2.0
+    firmware variant -- NOT the same as the "mx106" key elsewhere in this
+    repo, which targets the original Protocol 1.0 MX-106 via MXActuator
+    (oscilloscope-measured error_gain=0.158) and has its own fitted params
+    under bam/params/mx106/. Control table layout is identical to XH540
+    (Torque Enable=64, Position P/I/D Gain=84/82/80 with the same
+    KPP=register/MX106V2_KP_DIVISOR conversion, Goal Position=116, Present
+    PWM=124, PWM Limit=36), so bam/dynamixel/configure_kp_divisor.py and
+    DynamixelXH540 work unmodified for it -- just point --port/--id at it.
+
+    kt/R/armature below are carried over unchanged from MXActuator
+    (physical motor is the same across protocol versions); only error_gain
+    was re-derived for this firmware's control table / KP scaling.
+    """
+
+    def __init__(self, testbench_class: Testbench):
+        super().__init__(
+            testbench_class,
+            vin=15.0,
+            kp=32.0,
+            # This gain, if multiplied by a position error and firmware KP, gives duty cycle
+            error_gain=(MX106V2_ENCODER_COUNTS_PER_REV / (2 * np.pi))
+            / (MX106V2_KP_DIVISOR * MX106V2_PWM_LIMIT),
+            max_pwm=1.0,
+        )
+
+    def initialize(self):
+        # Torque constant [Nm/A] or [V/(rad/s)]
+        self.model.kt = Parameter(1.6, 1.0, 3.0)
+
+        # Motor resistance [Ohm]
+        self.model.R = Parameter(2.0, 1.0, 5.0)
+
+        # Motor armature / apparent inertia [kg m^2]
+        self.model.armature = Parameter(0.005, 0.001, 0.05)
+
+    def get_extra_inertia(self) -> float:
+        return self.model.armature.value
+
+
+MX64V2_ENCODER_COUNTS_PER_REV = 4096  # Resolution: 4096 pulse/rev (datasheet)
+MX64V2_KP_DIVISOR = 141.32  # Empirically measured with bam/dynamixel/configure_kp_divisor.py
+# (pooled least-squares estimate over 4425 samples, --duration 15, kp in
+# [100, 200, 300, 400, 600, 800]; per-kp estimates in [140.77, 142.17], i.e.
+# +/-0.7% -- tight and consistent, distinct from MX106V2_KP_DIVISOR (~147):
+# MX-64(2.0) (model 311) and MX-106(2.0) (model 321) are different physical
+# actuators, so a different real divisor is expected. An earlier short-
+# duration run (--duration 4, the KPS default) on the same servo gave a
+# noisier 137.96-151.59 spread pooling to 142.24 -- consistent with that
+# run being under-sampled rather than the servo's real value drifting.
+MX64V2_PWM_LIMIT = 885   # Present PWM limit, read back from the servo's own register (confirmed)
+
+
+class MX64V2Actuator(VoltageControlledActuator):
+    """
+    Represents a Dynamixel MX-64(2.0) actuator, i.e. the Protocol 2.0
+    firmware variant -- NOT the same as the "mx64" key elsewhere in this
+    repo, which targets the original Protocol 1.0 MX-64 via MXActuator
+    (oscilloscope-measured error_gain=0.158). Control table layout is
+    identical to XH540 (Torque Enable=64, Position P/I/D Gain=84/82/80 with
+    the same KPP=register/MX64V2_KP_DIVISOR conversion, Goal Position=116,
+    Present PWM=124, PWM Limit=36), so bam/dynamixel/configure_kp_divisor.py
+    and DynamixelXH540 work unmodified for it -- just point --port/--id at it.
+
+    kt/R/armature below are carried over unchanged from MXActuator (same
+    ranges used there for both MX-64 and MX-106); only error_gain was
+    re-derived for this firmware's control table / KP scaling.
+    """
+
+    def __init__(self, testbench_class: Testbench):
+        super().__init__(
+            testbench_class,
+            vin=15.0,
+            kp=32.0,
+            # This gain, if multiplied by a position error and firmware KP, gives duty cycle
+            error_gain=(MX64V2_ENCODER_COUNTS_PER_REV / (2 * np.pi))
+            / (MX64V2_KP_DIVISOR * MX64V2_PWM_LIMIT),
+            max_pwm=1.0,
+        )
+
+    def initialize(self):
+        # Torque constant [Nm/A] or [V/(rad/s)]
+        self.model.kt = Parameter(1.6, 1.0, 3.0)
+
+        # Motor resistance [Ohm]
+        self.model.R = Parameter(2.0, 1.0, 5.0)
+
+        # Motor armature / apparent inertia [kg m^2]
+        self.model.armature = Parameter(0.005, 0.001, 0.05)
+
+    def get_extra_inertia(self) -> float:
+        return self.model.armature.value
+
+
+XH540_ENCODER_COUNTS_PER_REV = 4096  # Resolution: 4096 pulse/rev (datasheet)
+XH540_KP_DIVISOR = 128  # Position P Gain: KPP = KPP(TBL) / 128 (datasheet, not empirically corrected)
+XH540_PWM_LIMIT = 885   # Default Present PWM limit for XH540-W270 (datasheet)
+
+
+class XHActuator(VoltageControlledActuator):
+    """
+    Represents a Dynamixel XH-430 actuator
+    """
+
+    def __init__(self, testbench_class: Testbench):
+        super().__init__(
+            testbench_class,
+            vin = 16.5,
+            kp = 32.0,
+            # This gain, if multiplied by a position error and firmware KP, gives duty cycle
+            error_gain=(XH540_ENCODER_COUNTS_PER_REV / (2 * np.pi))
+            / (XH540_KP_DIVISOR * XH540_PWM_LIMIT),
+            # Maximum allowable duty cycle, also determined with oscilloscope
+            max_pwm = 1.0
+        )
+
+    def initialize(self):
+        # Torque constant [Nm/A] or [V/(rad/s)]
+        # Center from datasheet stall torque/current @12V (9.9/4.9 ~= 2.02 Nm/A),
+        # range widened to also cover the no-load-speed cross-check (~2.94 Nm/A)
+        self.model.kt = Parameter(2.0, 0.6, 4.0)
+
+        # Motor resistance [Ohm]
+        # Stall condition U ~= I*R across 11.1/12.0/14.8V all agree on ~2.45-2.51 Ohm
+        self.model.R = Parameter(2.48, 1.2, 5.0)
+
+        # Motor armature / apparent inertia [kg m^2]
+        # No rotor inertia published (coreless Maxon, part number undisclosed),
+        # so this is left for the optimizer to identify
+        self.model.armature = Parameter(0.001, 0.0001, 0.1)
+
+    def get_extra_inertia(self) -> float:
+        return self.model.armature.value
 class XL320Actuator(VoltageControlledActuator):
     """
     Represents a Dynamixel XL-320 actuator

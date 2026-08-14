@@ -49,6 +49,7 @@ from .model import Model, load_model, _resolve_json_path
 
 if TYPE_CHECKING:
     from mjlab.entity import Entity
+    
 
 
 
@@ -93,6 +94,12 @@ class BamActuatorCfg(ActuatorCfg):
         every step.
     :param delay_per_env_phase: Whether each environment starts with an independent
         delay phase offset. ``True`` → environments are not synchronized.
+    :param preserve_joint_friction: Joint names to exclude from the automatic
+        ``damping``/``frictionloss`` zeroing normally applied to every actuated
+        joint (see :meth:`edit_spec`). Use this for passive/coupled joints that
+        happen to fall under ``target_names_expr`` but whose XML-authored
+        friction should be kept as-is (e.g. a linkage's follower joint) rather
+        than modeled inside :meth:`compute`.
     """
 
     motor_name: str | None = None
@@ -104,6 +111,7 @@ class BamActuatorCfg(ActuatorCfg):
     vin_drop_gain_range: tuple[float, float] | None = None
     vin_min: float | None = None
     max_current: float | None = None
+    preserve_joint_friction: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.json_path is not None and (self.motor_name is not None or self.model is not None):
@@ -187,7 +195,9 @@ class BamActuator(Actuator):
         """Convert position actuators to motor mode and zero MuJoCo friction.
 
         We handle all friction ourselves inside :meth:`compute`, so MuJoCo's
-        built-in ``frictionloss`` and ``damping`` are zeroed out here.
+        built-in ``frictionloss`` and ``damping`` are zeroed out here — except
+        for joints listed in ``cfg.preserve_joint_friction``, whose
+        XML-authored values are left untouched.
         """
         bam = self._bam_model
         act = bam.actuator
@@ -217,8 +227,9 @@ class BamActuator(Actuator):
                 for joint in spec.joints:
                     if joint.name == tgt_name:
                         joint.armature = float(armature)
-                        joint.damping = np.zeros((3, 1))
-                        joint.frictionloss = 0.0
+                        if tgt_name not in self.cfg.preserve_joint_friction:
+                            joint.damping = np.zeros((3, 1))
+                            joint.frictionloss = 0.0
                         break
                 self._mjs_actuators.append(mjact)
                 converted.add(tgt_name)
@@ -236,8 +247,9 @@ class BamActuator(Actuator):
                 self._mjs_actuators.append(mjact)
                 for joint in spec.joints:
                     if joint.name == target_name:
-                        joint.damping = np.zeros((3, 1))
-                        joint.frictionloss = 0.0
+                        if target_name not in self.cfg.preserve_joint_friction:
+                            joint.damping = np.zeros((3, 1))
+                            joint.frictionloss = 0.0
                         break
 
     def initialize(
