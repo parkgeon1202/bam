@@ -23,24 +23,26 @@ arg_parser.add_argument("--speak", action="store_true")
 args = arg_parser.parse_args()
 
 KPS = {
-    "mx64":    [4, 8, 16, 32],
-    "mx106":   [4, 8, 16, 32],
-    "xl320":   [4, 8, 16, 32],
-    "xl330":   [50, 100, 200, 300, 400],
-    "xl330i":  [50, 100, 200, 300, 400],
-    "xh540":   [round(800/8), round(800/6), round(800/4), round(800/3), round(800/2), 800],
-    "mx106v2": [round(850/8), round(850/6), round(850/4), round(850/3), round(850/2), 850],
-    "mx64v2":  [round(850/8), round(850/6), round(850/4), round(850/3), round(850/2), 850],
+    "mx64": [4, 8, 16, 32],
+    "mx106": [4, 8, 16, 32],
+    "xl320": [4, 8, 16, 32],
+    "xl330": [50, 100, 200, 300, 400],
+    "xl330i": [50, 100, 200, 300, 400],
+    "xh540": [round(800 / 8), round(800 / 6), round(800 / 4), round(800 / 3), round(800 / 2), 800],
+    "mx106v2": [round(850 / 8), round(850 / 6), round(850 / 4), round(850 / 3), round(850 / 2), 850],
+    "mx64v2": [round(850 / 8), round(850 / 6), round(850 / 4), round(850 / 3), round(850 / 2), 850],
 }
 
 if args.motor not in KPS:
     raise ValueError(f"Unknown motor '{args.motor}'. Known motors: {list(KPS.keys())}")
 
 kps = KPS[args.motor]
-trajectories = ["sin_sin", "lift_and_drop", "up_and_down", "sin_time_square"]
+trajectories = ["sin_sin", "lift_and_drop", "up_and_down", "sin_time_square", "half_sine", "steps"]
 
 command_base = f"uv run -m bam.dynamixel.record --mass {args.mass} --arm-mass {args.arm_mass} --length {args.length}"
-command_base += f" --port {args.port} --logdir {args.logdir} --motor {args.motor} --vin {args.vin}"
+command_base += (
+    f" --port {args.port} --logdir {args.logdir} --motor {args.motor} --vin {args.vin}"
+)
 
 
 for kp in kps:
@@ -50,7 +52,8 @@ for kp in kps:
 
         if args.speak:
             from gtts import gTTS
-            myobj = gTTS(text=sentence, lang='en', slow=False)
+
+            myobj = gTTS(text=sentence, lang="en", slow=False)
             myobj.save("/tmp/message.mp3")
             os.system("mpg321 /tmp/message.mp3")
 

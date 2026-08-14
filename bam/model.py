@@ -58,11 +58,15 @@ class Model:
         self.max_load_friction = 0.5
         self.max_viscous_friction = 1.0
 
-    def reset(self) -> None:
+    def reset(self, env_ids=...) -> None:
         """
         Resets the model internal state
+
+        :param env_ids: Environments to reset when the model is evaluated over a
+            batch, see :meth:`bam.actuator.Actuator.reset`. Defaults to ``...``
+            (all of them).
         """
-        self.actuator.reset()
+        self.actuator.reset(env_ids)
 
     def set_actuator(self, actuator: Actuator) -> None:
         """Attach an actuator to this model and initialize its parameters.
@@ -105,8 +109,8 @@ class Model:
 
         if self.stribeck:
             # Stribeck velocity [rad/s] and curvature
-            self.dtheta_stribeck = Parameter(0.2, 0.01, 5.0)
-            self.alpha = Parameter(1.35, 0.5, 10.0)
+            self.dtheta_stribeck = Parameter(0.2, 0.10, 3.0)
+            self.alpha = Parameter(1.35, 1.0, 10.0)
 
         # Viscous friction [Nm/(rad/s)]
         self.friction_viscous = Parameter(0.1, 0.0, self.max_viscous_friction)
@@ -270,7 +274,9 @@ models = {
 }
 
 
-def _resolve_json_path(json_file: str | None, motor_name: str | None, model: str | None) -> str:
+def _resolve_json_path(
+    json_file: str | None, motor_name: str | None, model: str | None
+) -> str:
     if json_file is not None:
         return json_file
     if motor_name is None or model is None:
@@ -279,8 +285,16 @@ def _resolve_json_path(json_file: str | None, motor_name: str | None, model: str
     path = params_root / motor_name / f"{model}.json"
     if not path.exists():
         motor_dir = params_root / motor_name
-        available_models = sorted(p.stem for p in motor_dir.glob("*.json")) if motor_dir.exists() else []
-        available_motors = sorted(d.name for d in params_root.iterdir() if d.is_dir()) if params_root.exists() else []
+        available_models = (
+            sorted(p.stem for p in motor_dir.glob("*.json"))
+            if motor_dir.exists()
+            else []
+        )
+        available_motors = (
+            sorted(d.name for d in params_root.iterdir() if d.is_dir())
+            if params_root.exists()
+            else []
+        )
         raise FileNotFoundError(
             f"No bundled params for motor={motor_name!r} model={model!r}. "
             f"Available models for this motor: {available_models}. "
@@ -289,7 +303,9 @@ def _resolve_json_path(json_file: str | None, motor_name: str | None, model: str
     return str(path)
 
 
-def load_model(json_file: str = None, *, motor_name: str = None, model: str = None) -> Model:
+def load_model(
+    json_file: str = None, *, motor_name: str = None, model: str = None
+) -> Model:
     """Load a BAM friction model from a parameter file.
 
     Specify the source with **one** of two mutually exclusive approaches:
@@ -314,7 +330,8 @@ def load_model(json_file: str = None, *, motor_name: str = None, model: str = No
     with open(path) as f:
         data = json.load(f)
         return load_model_from_dict(data)
-    
+
+
 def load_model_from_dict(data: dict) -> Model:
     """Load a BAM friction model from a parameter dictionary.
 

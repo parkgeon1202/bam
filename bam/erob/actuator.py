@@ -6,10 +6,18 @@
 
 #     http://www.apache.org/licenses/LICENSE-2.0
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 from bam.actuator import Actuator
 from bam.parameter import Parameter
 from bam.testbench import Testbench, Pendulum
+
+if TYPE_CHECKING:
+    from bam.actuator import ArrayLike
+
 
 class ErobActuator(Actuator):
     def __init__(self, testbench_class: Testbench, damping=2.0):
@@ -51,17 +59,21 @@ class ErobActuator(Actuator):
         return "amps"
 
     def compute_control(
-        self, q_target: float, q: float, dq: float, dt: float
-    ) -> float | None:
+        self, q_target: ArrayLike, q: ArrayLike, dq: ArrayLike, dt: float
+    ) -> ArrayLike | None:
         # Target velocity is assumed to be 0
         amps = (q_target - q) * self.kp + self.damping * np.sqrt(self.kp) * (0.0 - dq)
-        amps = np.clip(amps, -self.max_amps, self.max_amps)
+        amps = self.backend.clamp(amps, -self.max_amps, self.max_amps)
 
         return amps
 
     def compute_torque(
-        self, control: float | None, torque_enable: bool, q: float, dq: float
-    ) -> float:
+        self,
+        control: ArrayLike | None,
+        torque_enable: bool,
+        q: ArrayLike,
+        dq: ArrayLike,
+    ) -> ArrayLike:
         # Computing the torque given the control signal
         # With eRob, control=None actually meany amps=0, and not a disconnection of the motor
         amps = control * torque_enable
@@ -75,7 +87,7 @@ class ErobActuator(Actuator):
 
         min_torque = -volts_bounded_torque - emf
         max_torque = volts_bounded_torque - emf
-        torque = np.clip(torque, min_torque, max_torque)
+        torque = self.backend.clamp(torque, min_torque, max_torque)
 
         return torque
 
