@@ -46,7 +46,7 @@ identification = [
     "protobuf>=3.20,<4.0",
     "dynamixel_sdk",
     "rustypot>=1.5.0",
-    "optuna",
+    "optuna<4.4.0",  # >=4.4.0 silently drops CmaEsSampler's restart_strategy (bipop/ipop), see fit.py
     "cmaes",
     "wandb",
     "matplotlib",

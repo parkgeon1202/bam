@@ -96,8 +96,15 @@ class BamActuatorCfg(ActuatorCfg):
     * **Custom JSON**: set ``json_path`` to a BAM params JSON file produced by
       ``bam.fit``.
 
-    :param motor_name: Name of the bundled motor. Currently supported: "xl330", "xl320", "mx106", "mx64", "erob80:50", and "erob80:100". Mutually exclusive with ``json_path``.
-    :param model: Model variant to use with ``motor_name``, one of "m1"–"m6". Mutually exclusive with ``json_path``.
+    :param motor_name: Name of the bundled motor — resolved as
+        ``params/<motor_name>/<model>.json`` relative to the package, so any
+        directory added under ``params/`` works without a code change. Bundled
+        at present: "xl330", "xl320", "mx28", "mx64", "mx64v2", "mx106",
+        "mx106v2", "xh540", "erob80_50", "erob80_100" (all with m1–m6), and
+        "feetech_sts3215_7_4V" (m1 only). Mutually exclusive with ``json_path``.
+    :param model: Model variant to use with ``motor_name``, one of "m1"–"m6"
+        (whichever the motor's directory actually provides). Mutually exclusive
+        with ``json_path``.
     :param json_path: Path to a custom BAM params JSON file produced by ``bam.fit``. Mutually exclusive with ``motor_name`` and ``model``.
     :param target_names_expr: Tuple of regex patterns to match actuated joint names.
     :param vin: Supply voltage override [V]. ``None`` → uses the value in the JSON.

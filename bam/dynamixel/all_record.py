@@ -29,8 +29,11 @@ KPS = {
     "xl330": [50, 100, 200, 300, 400],
     "xl330i": [50, 100, 200, 300, 400],
     "xh540": [round(800 / 8), round(800 / 6), round(800 / 4), round(800 / 3), round(800 / 2), 800],
-    "mx106v2": [round(850 / 8), round(850 / 6), round(850 / 4), round(850 / 3), round(850 / 2), 850],
-    "mx64v2": [round(850 / 8), round(850 / 6), round(850 / 4), round(850 / 3), round(850 / 2), 850],
+    # mx64v2/mx106v2: v1(Protocol 1.0) 로그를 이미 확보한 kp=[4,8,16,32]와 동등한
+    # duty_cycle(제어 강도)을 내도록, kp_v2 = kp_v1 * (error_gain_v1/error_gain_v2)로 환산.
+    "mx106v2": [126, 252, 504, 1009],
+    "mx64v2": [121, 243, 485, 970],
+    "mx28": [round(850 / 8), round(850 / 6), round(850 / 4), round(850 / 3), round(850 / 2), 850],
 }
 
 if args.motor not in KPS:
