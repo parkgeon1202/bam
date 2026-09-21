@@ -104,13 +104,13 @@ class Model:
                     self.load_friction_stribeck = Parameter(0.05, 0.0, 1.0)
 
                 if self.quadratic:
-                    self.load_friction_motor_quad = Parameter(0.0, 0.0, 0.01)
+                    self.load_friction_motor_quad = Parameter(0.0, 0.0, 0.3)
                     self.load_friction_external_quad = Parameter(0.0, 0.0, 0.01)
 
         if self.stribeck:
             # Stribeck velocity [rad/s] and curvature
             self.dtheta_stribeck = Parameter(0.2, 0.10, 3.0)
-            self.alpha = Parameter(1.35, 1.0, 10.0)
+            self.alpha = Parameter(1.35, 0.1, 60.0)
 
         # Viscous friction [Nm/(rad/s)]
         self.friction_viscous = Parameter(0.1, 0.0, self.max_viscous_friction)

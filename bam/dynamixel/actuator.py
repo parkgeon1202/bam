@@ -86,12 +86,19 @@ class MX28Actuator(VoltageControlledActuator):
         self.model.kt = Parameter(1.9, 1.2, 2.5)
 
         # Motor resistance [Ohm]
-        # Stall condition U ~= I*R across 11.1/12.0/14.8V all agree on ~8.5-8.7 Ohm
-        self.model.R = Parameter(8.6, 6.0, 11.0)
+        # Stall condition U ~= I*R across 11.1/12.0/14.8V all agree on ~8.5-8.7 Ohm.
+        # Upper bound temporarily widened 11.0 -> 15.0 to diagnose the fit pinning
+        # R against the old bound (likely compensating for MX28_KP_DIVISOR=128
+        # being uncorrected -- see the constant above); revert once that's
+        # resolved and R settles away from the boundary again.
+        self.model.R = Parameter(8.6, 6.0, 15.0)
 
         # Motor armature / apparent inertia [kg m^2]
-        # No rotor inertia published, left for the optimizer to identify
-        self.model.armature = Parameter(0.003, 0.0005, 0.05)
+        # No rotor inertia published, left for the optimizer to identify.
+        # Lower bound 0.0005 -> 0.0: physically armature can't be negative,
+        # so 0.0 is a valid floor (was previously kept slightly off zero for
+        # no particular reason tied to this actuator).
+        self.model.armature = Parameter(0.003, 0.0, 0.05)
 
     def get_extra_inertia(self) -> float:
         return self.model.armature.value

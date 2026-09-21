@@ -22,9 +22,10 @@ _LOCAL_CONTROLLER_CLASSES = {
     "xl320": DynamixelXL320,
     "xh540": DynamixelXH540,
     # Protocol 2.0, control table identical to XH540 -- see MX106V2Actuator /
-    # MX64V2Actuator docstrings in bam/dynamixel/actuator.py.
+    # MX64V2Actuator / MX28Actuator docstrings in bam/dynamixel/actuator.py.
     "mx106v2": DynamixelXH540,
     "mx64v2": DynamixelXH540,
+    "mx28": DynamixelXH540,
 }
 
 arg_parser = argparse.ArgumentParser()

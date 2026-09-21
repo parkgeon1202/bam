@@ -40,6 +40,14 @@ arg_parser.add_argument("--wandb", action="store_true")
 arg_parser.add_argument("--set", type=str, default="")
 arg_parser.add_argument("--validation_kp", type=int, default=0)
 arg_parser.add_argument("--eval", action="store_true")
+arg_parser.add_argument(
+    "--eval_all_kp",
+    action="store_true",
+    help="With --eval, report score separately for every kp value found in "
+    "--logdir instead of a single number for --validation_kp. Ignores "
+    "--validation_kp (no split is performed, since every kp is scored on "
+    "its own).",
+)
 args = arg_parser.parse_args()
 
 if not args.eval:
@@ -50,7 +58,10 @@ if not args.eval:
     json.dump({}, open(params_json_filename, "w"))
 
 logs = Logs(args.logdir)
-if not args.eval and args.validation_kp > 0:
+if args.validation_kp > 0 and not args.eval_all_kp:
+    # Split unconditionally (not just when fitting) so `--eval` can also
+    # score against the held-out logs instead of silently mixing them back
+    # into the training set -- see the `args.eval` branch below.
     validation_logs = logs.split(args.validation_kp)
     validation_batch = validation_logs.make_batch()
     print(f"{len(validation_logs.logs)} logs splitted for validation")
@@ -203,8 +214,26 @@ def monitor(study, trial):
 
 
 if args.eval:
-    model = load_model("params.json")
-    print(f"Score: {compute_scores(model, logs)}")
+    # Was hardcoded to a literal "params.json" (ignoring --output) and always
+    # scored against the full, unsplit `logs` -- silently including whatever
+    # was trained on. Fixed to load the actual --output file and, when
+    # --validation_kp is given, score only the held-out logs split above.
+    model = load_model(args.output)
+    if args.eval_all_kp:
+        kps = sorted(set(log["kp"] for log in logs.logs))
+        for kp in kps:
+            kp_logs = [log for log in logs.logs if log["kp"] == kp]
+            score = sum(compute_score(model, log) for log in kp_logs) / len(kp_logs)
+            print(f"kp={kp:<6} ({len(kp_logs):3d} logs): {score}")
+    elif args.validation_kp > 0:
+        score = compute_scores(model, validation_logs)
+        print(
+            f"Validation score (kp={args.validation_kp}, "
+            f"{len(validation_logs.logs)} held-out logs): {score}"
+        )
+    else:
+        score = compute_scores(model, logs)
+        print(f"Score (all {len(logs.logs)} logs, no validation split given): {score}")
 else:
     study_name = f"study_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 

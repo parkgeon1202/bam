@@ -586,14 +586,30 @@ class DynamixelXH540:
             self.portHandler, self.id, XH540_ADDR_POSITION_P_GAIN, gain
         )
 
-    def _write_checked(self, write_fn, address: int, value: int, context: str):
+    def _write_checked(self, write_fn, address: int, value: int, context: str, retries: int = 5):
         """write2/4ByteTxRx() with a buffer drain first -- a stale leftover
         reply sitting in the input buffer from an earlier exchange can get
         misread as this write's ack, the same failure mode _read_bytes()
-        guards against on the read side (see its docstring)."""
-        self._drain()
-        result, error = write_fn(self.portHandler, self.id, address, value)
-        self._check_comm(result, error, context)
+        guards against on the read side (see its docstring).
+
+        Also retries like _read_bytes() instead of raising on the first bad
+        reply: _configure_indirect_status()/_configure_indirect_commands()
+        fire ~25 of these individual EEPROM writes back-to-back on every
+        connection, and a single-shot write is a single-shot chance for one
+        bit of line noise to kill the whole __init__ (seen as e.g. "Incorrect
+        status packet!" -- a corrupted response, not a real fault).
+        """
+        last_result, last_error = None, None
+        for _ in range(retries):
+            self._drain()
+            result, error = write_fn(self.portHandler, self.id, address, value)
+            real_error = error & ~ERRBIT_ALERT  # ALERT alone isn't a write failure
+            if result == COMM_SUCCESS and real_error == 0:
+                return
+            last_result, last_error = result, error
+            time.sleep(0.002)
+
+        self._check_comm(last_result, last_error, context)
 
     def set_i_gain(self, gain: int):
         """Set the Position I Gain (0–16383). TxRx (checked) since this is a
