@@ -286,6 +286,13 @@ class BamActuator(Actuator):
                 mjact.set_to_motor()
                 mjact.forcelimited = True
                 mjact.forcerange = (-force_limit, force_limit)
+                # A <position> actuator's ctrlrange is a joint-angle range [rad];
+                # set_to_motor() keeps it, but a motor's ctrl is a torque [Nm], so
+                # MuJoCo would clamp BAM's torque to the angle limits (e.g. a knee
+                # to +/-1.6 Nm instead of +/-21 Nm). Make the ctrl range the
+                # torque range.
+                mjact.ctrllimited = True
+                mjact.ctrlrange = (-force_limit, force_limit)
                 mjact.gear = [1.0, 0, 0, 0, 0, 0]
                 for joint in spec.joints:
                     if joint.name == tgt_name:
