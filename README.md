@@ -79,7 +79,7 @@
 
 ### 3. mjlab actuator (`bam/mjlab.py`)
 
-- **Torque clamp bug fix (commit `41aa0c2`):**
+- **Torque clamp bug fix (commit `0de86d4`):**
   - `set_to_motor()` keeps the `<position>` actuator's `ctrlrange` (a joint
     angle in rad). A motor actuator's ctrl is a torque (Nm), so BAM's torque
     was clamped to the joint-angle range, e.g. hip roll to ±1.19 Nm and knee
